@@ -13,22 +13,32 @@ const COLORS = ['#6366F1', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444'];
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
-    userQuizzes, 
-    quizResults, 
+    userQuizzes = [], 
+    quizResults = [], 
     loading, 
+    error,
     fetchUserQuizzes, 
     fetchQuizResults 
   } = useQuiz();
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    fetchUserQuizzes();
-    fetchQuizResults();
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          fetchUserQuizzes(),
+          fetchQuizResults()
+        ]);
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+      }
+    };
+    loadData();
   }, [fetchUserQuizzes, fetchQuizResults]);
 
   // Calculate analytics data
-  const totalQuizzes = userQuizzes.length;
-  const totalAttempts = quizResults.length;
+  const totalQuizzes = userQuizzes?.length || 0;
+  const totalAttempts = quizResults?.length || 0;
   const averageScore = totalAttempts > 0 
     ? quizResults.reduce((sum, result) => sum + (result.score / result.totalQuestions) * 100, 0) / totalAttempts 
     : 0;
@@ -72,6 +82,23 @@ const Dashboard: React.FC = () => {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Award className="h-5 w-5 text-red-500" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

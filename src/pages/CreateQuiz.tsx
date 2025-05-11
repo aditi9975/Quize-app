@@ -3,6 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useQuiz } from '../contexts/QuizContext';
 import { Loader2, Plus, AlertCircle } from 'lucide-react';
 
+interface QuizSettings {
+  numQuestions: number;
+  timeLimit: number;
+}
+
+interface QuizData {
+  title: string;
+  topic: string;
+  settings: QuizSettings;
+}
+
 const CreateQuiz: React.FC = () => {
   const navigate = useNavigate();
   const { createQuiz, loading } = useQuiz();
@@ -30,17 +41,30 @@ const CreateQuiz: React.FC = () => {
 
     try {
       setGenerating(true);
-      const newQuiz = await createQuiz({
+      const quizData: QuizData = {
         title,
         topic,
         settings: {
           numQuestions,
           timeLimit
         }
-      });
-      navigate(`/take-quiz/${newQuiz._id}`);
-    } catch (err) {
-      setError('Failed to create quiz. Please try again.');
+      };
+      
+      const newQuiz = await createQuiz(quizData);
+      
+      if (!newQuiz || !newQuiz._id) {
+        throw new Error('Failed to create quiz: No quiz ID received');
+      }
+
+      navigate(`/take-quiz/${newQuiz._id}`, { replace: true });
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to create quiz. Please try again.';
+      setError(errorMessage);
+      console.error('Quiz creation error:', err);
+      
+      if (errorMessage.includes('timeout')) {
+        setError('The quiz generation is taking longer than expected. Please try again in a few moments.');
+      }
     } finally {
       setGenerating(false);
     }
@@ -135,7 +159,7 @@ const CreateQuiz: React.FC = () => {
                 {generating ? (
                   <>
                     <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                    Generating Quiz...
+                    {error?.includes('timeout') ? 'Retrying...' : 'Generating Quiz...'}
                   </>
                 ) : (
                   <>

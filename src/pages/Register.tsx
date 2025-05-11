@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { UserPlus, AlertCircle } from 'lucide-react';
+import { UserPlus, AlertCircle, XCircle } from 'lucide-react';
 
 const Register: React.FC = () => {
   const [name, setName] = useState('');
@@ -17,6 +17,7 @@ const Register: React.FC = () => {
     e.preventDefault();
     setFormError('');
     
+    // Validate form fields
     if (!name || !email || !password || !confirmPassword) {
       setFormError('Please fill in all fields');
       return;
@@ -31,15 +32,23 @@ const Register: React.FC = () => {
       setFormError('Password must be at least 6 characters long');
       return;
     }
+
+    if (!email.includes('@')) {
+      setFormError('Please enter a valid email address');
+      return;
+    }
     
     try {
-  await register(name, email, password);
-  console.log("Registration successful!");
-  navigate("/dashboard");
-} catch (err) {
-  console.error("Registration failed:", err);
-}
-
+      await register(name, email, password);
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      // Handle specific backend error messages
+      if (err.message.includes('already exists')) {
+        setFormError('An account with this email already exists. Please try logging in instead.');
+      } else {
+        setFormError(err.message || 'Registration failed. Please try again.');
+      }
+    }
   };
 
   return (
@@ -61,12 +70,22 @@ const Register: React.FC = () => {
           <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-red-500" />
+                <XCircle className="h-5 w-5 text-red-500" />
               </div>
               <div className="ml-3">
                 <p className="text-sm text-red-700">
                   {formError || error}
                 </p>
+                {formError.includes('already exists') && (
+                  <div className="mt-2">
+                    <Link 
+                      to="/login" 
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                    >
+                      Click here to login →
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>

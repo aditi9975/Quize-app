@@ -260,6 +260,12 @@ const QuizResults: React.FC = () => {
                           </p>
                         </div>
                       )}
+                      
+                      {answer.explanation && (
+                        <p className="mt-2 text-gray-600 text-sm">
+                          <span className="font-medium">Explanation:</span> {answer.explanation}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
