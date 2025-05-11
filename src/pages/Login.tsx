@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, AlertCircle } from 'lucide-react';
+import { LogIn, XCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -15,16 +15,29 @@ const Login: React.FC = () => {
     e.preventDefault();
     setFormError('');
     
+    // Validate form fields
     if (!email || !password) {
       setFormError('Please fill in all fields');
+      return;
+    }
+    
+    if (!email.includes('@')) {
+      setFormError('Please enter a valid email address');
       return;
     }
     
     try {
       await login(email, password);
       navigate('/dashboard');
-    } catch (err) {
-      // Error is handled in the AuthContext
+    } catch (err: any) {
+      // Handle specific backend error messages
+      if (err.message.includes('not found')) {
+        setFormError('No account found with this email. Please register first.');
+      } else if (err.message.includes('Invalid password')) {
+        setFormError('Invalid password. Please try again.');
+      } else {
+        setFormError(err.message || 'Login failed. Please try again.');
+      }
     }
   };
 
@@ -47,12 +60,22 @@ const Login: React.FC = () => {
           <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-red-500" />
+                <XCircle className="h-5 w-5 text-red-500" />
               </div>
               <div className="ml-3">
                 <p className="text-sm text-red-700">
                   {formError || error}
                 </p>
+                {formError.includes('No account found') && (
+                  <div className="mt-2">
+                    <Link 
+                      to="/register" 
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                    >
+                      Click here to register →
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -87,6 +110,26 @@ const Login: React.FC = () => {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
               />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                Remember me
+              </label>
+            </div>
+
+            <div className="text-sm">
+              <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">
+                Forgot your password?
+              </a>
             </div>
           </div>
 

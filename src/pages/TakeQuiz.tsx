@@ -31,13 +31,23 @@ const TakeQuiz: React.FC = () => {
   // Load quiz data
   useEffect(() => {
     const loadQuiz = async () => {
+      if (!id) {
+        setError('No quiz ID provided');
+        return;
+      }
+
       try {
-        if (id) {
-          const data = await fetchQuizById(id);
-          setQuiz(data);
+        setError('');
+        const data = await fetchQuizById(id);
+        
+        if (!data || !data.questions || data.questions.length === 0) {
+          throw new Error('Quiz data is incomplete or invalid');
         }
-      } catch (err) {
-        setError('Failed to load quiz');
+        
+        setQuiz(data);
+      } catch (err: any) {
+        console.error('Error loading quiz:', err);
+        setError(err.message || 'Failed to load quiz. Please try again.');
       }
     };
     
@@ -49,7 +59,16 @@ const TakeQuiz: React.FC = () => {
     if (!quiz || quizCompleted) return;
     
     const timer = setInterval(() => {
-      setTimeElapsed((prev) => prev + 1);
+      setTimeElapsed((prev) => {
+        const newTime = prev + 1;
+        // Check if time limit is reached
+        if (newTime >= quiz.settings.timeLimit * 60) {
+          clearInterval(timer);
+          handleCompleteQuiz();
+          return prev;
+        }
+        return newTime;
+      });
     }, 1000);
     
     return () => clearInterval(timer);
@@ -76,15 +95,39 @@ const TakeQuiz: React.FC = () => {
   };
 
   const handleCompleteQuiz = async () => {
-    if (!id) return;
+    if (!id || !quiz) {
+      setError('Cannot complete quiz: Missing quiz data');
+      return;
+    }
     
     setQuizCompleted(true);
     
     try {
-      const result = await submitQuizResult(id, answers, timeElapsed);
-      navigate(`/quiz-results/${result._id}`);
-    } catch (err) {
-      setError('Failed to submit quiz results');
+      // Prepare answers with correct/incorrect status
+      const processedAnswers = answers.map(answer => {
+        const question = quiz.questions.find((q: { _id: string; question: string; correctAnswer: string }) => q._id === answer.questionId);
+        if (!question) {
+          throw new Error('Question not found in quiz data');
+        }
+        return {
+          question: question.question,
+          userAnswer: answer.answer,
+          correctAnswer: question.correctAnswer,
+          isCorrect: answer.answer === question.correctAnswer
+        };
+      });
+
+      const result = await submitQuizResult(id, processedAnswers, timeElapsed);
+      
+      if (!result || !result._id) {
+        throw new Error('Failed to submit quiz results: No result ID received');
+      }
+
+      // Redirect to quiz results page
+      navigate(`/quiz-results/${result._id}`, { replace: true });
+    } catch (err: any) {
+      console.error('Quiz submission error:', err);
+      setError(err.message || 'Failed to submit quiz results. Please try again.');
     }
   };
 
@@ -124,6 +167,7 @@ const TakeQuiz: React.FC = () => {
   }
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
+  const timeRemaining = quiz.settings.timeLimit * 60 - timeElapsed;
 
   return (
     <div className="bg-gray-50 min-h-[calc(100vh-4rem)] py-8">
@@ -135,7 +179,7 @@ const TakeQuiz: React.FC = () => {
               <h1 className="text-xl font-semibold">{quiz.title}</h1>
               <div className="flex items-center">
                 <Clock className="h-5 w-5 mr-1" />
-                <span>{formatTime(timeElapsed)}</span>
+                <span>{formatTime(timeRemaining)}</span>
               </div>
             </div>
             <p className="text-indigo-200 text-sm mt-1">{quiz.topic}</p>

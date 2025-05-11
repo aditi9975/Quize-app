@@ -1,65 +1,86 @@
-import { Together } from '@together-ai/sdk';
+import Together from "together-ai";
+import dotenv from 'dotenv';
 
-// Initialize TogetherAI client
-const togetherAi = new Together(process.env.TOGETHER_AI_API_KEY || 'default-key');
+dotenv.config();
 
-/**
- * Generate multiple-choice questions using TogetherAI
- * @param {string} topic - The topic to generate questions about
- * @param {number} numQuestions - Number of questions to generate
- * @returns {Array} - Array of question objects
- */
-export const generateQuestionsWithTogetherAI = async (topic, numQuestions = 10) => {
+const together = new Together({
+  apiKey: process.env.TOGETHER_API_KEY
+});
+
+export const generateQuiz = async (topic, difficulty = 'medium', numQuestions = 5) => {
   try {
-    // Create prompt for TogetherAI
-    const prompt = `
-Generate ${numQuestions} multiple-choice questions about ${topic}.
-For each question:
-1. The question should test understanding, not just memorization
-2. Provide four possible answer options (A, B, C, D)
-3. Indicate the correct answer
-4. Ensure all options are plausible but only one is correct
+    console.log('Generating quiz with params:', { topic, difficulty, numQuestions });
 
-Format your response as a valid JSON array with this structure:
-[
-  {
-    "question": "Question text",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correctAnswer": "Option that is correct"
-  }
-]
-`;
+    if (!process.env.TOGETHER_API_KEY) {
+      console.error('Missing TOGETHER_API_KEY');
+      return { success: false, error: 'API key missing' };
+    }
 
-    // Call TogetherAI API
-    const response = await togetherAi.complete({
-      model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
-      prompt: [
-        { role: 'system', content: 'You are a helpful AI assistant skilled at creating educational quizzes.' },
-        { role: 'user', content: prompt }
-      ],
+    const prompt = `Generate a ${difficulty} difficulty quiz about ${topic} with ${numQuestions} multiple choice questions. 
+Format each question as a JSON object like:
+{
+  "question": "The question text",
+  "options": ["option1", "option2", "option3", "option4"],
+  "correctAnswer": "option1",
+  "explanation": "Brief explanation of the correct answer"
+}
+Return only the JSON array.`;
+
+    console.log('Sending request to Together AI...');
+
+    const response = await together.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free",
       temperature: 0.7,
-      max_tokens: 2000
+      max_tokens: 2048
     });
 
-    // Extract and parse JSON response
-    const responseText = response.output.choices[0].text;
-    const jsonRegex = /\[\s*\{.*\}\s*\]/s;
-    const jsonMatch = responseText.match(jsonRegex);
-    
+    console.log('Received response from Together AI');
+
+    const content = response.choices[0].message.content;
+    console.log('Raw AI response:', content);
+
+    // Try to parse the content directly first
+    try {
+      const questions = JSON.parse(content);
+      if (Array.isArray(questions)) {
+        console.log('Successfully parsed questions directly');
+        return {
+          success: true,
+          questions: questions
+        };
+      }
+    } catch (parseError) {
+      console.log('Direct parse failed, trying to extract JSON from content');
+    }
+
+    // If direct parse fails, try to extract JSON from the content
+    const jsonRegex = /\[\s*\{.*?\}\s*\]/s;
+    const jsonMatch = content.match(jsonRegex);
     if (!jsonMatch) {
-      throw new Error('Failed to extract valid JSON from AI response');
+      console.error('Failed to extract JSON array from model output');
+      throw new Error("Failed to extract JSON array from model output");
     }
-    
+
     const questions = JSON.parse(jsonMatch[0]);
-    
-    // Validate questions
-    if (!Array.isArray(questions) || questions.length === 0) {
-      throw new Error('Invalid questions format');
-    }
-    
-    return questions;
+    console.log('Successfully extracted and parsed questions');
+
+    return {
+      success: true,
+      questions: questions
+    };
+
   } catch (error) {
-    console.error('Error generating questions:', error);
-    throw new Error('Failed to generate questions');
+    console.error('Error in generateQuiz:', error);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      stack: error.stack
+    });
+
+    return {
+      success: false,
+      error: error.message || 'Unknown error'
+    };
   }
 };

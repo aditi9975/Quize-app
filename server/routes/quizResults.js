@@ -1,38 +1,38 @@
 import express from 'express';
-import Quiz from '../models/Quiz.js';
 import QuizResult from '../models/QuizResult.js';
 import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Get all quiz results for authenticated user
+// Get all results for a user
 router.get('/', auth, async (req, res) => {
   try {
-    const results = await QuizResult.find({ user: req.user._id })
+    const results = await QuizResult.find({ user: req.user.userId })
       .populate('quiz')
-      .sort({ createdAt: -1 });
-    
+      .sort('-createdAt');
     res.json(results);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error fetching quiz results:', error);
+    res.status(500).json({ message: 'Error fetching quiz results' });
   }
 });
 
-// Get quiz result by ID
+// Get single result
 router.get('/:id', auth, async (req, res) => {
   try {
     const result = await QuizResult.findOne({
       _id: req.params.id,
-      user: req.user._id
+      user: req.user.userId
     }).populate('quiz');
-    
+
     if (!result) {
       return res.status(404).json({ message: 'Result not found' });
     }
-    
+
     res.json(result);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error fetching quiz result:', error);
+    res.status(500).json({ message: 'Error fetching quiz result' });
   }
 });
 
@@ -40,56 +40,33 @@ router.get('/:id', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const { quizId, answers, timeTaken } = req.body;
-    
-    // Find quiz
-    const quiz = await Quiz.findById(quizId);
-    if (!quiz) {
-      return res.status(404).json({ message: 'Quiz not found' });
+
+    if (!quizId || !answers || !Array.isArray(answers)) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
-    
+
     // Calculate score
-    let score = 0;
-    const processedAnswers = [];
-    
-    for (const answer of answers) {
-      // Find the corresponding question
-      const question = quiz.questions.find(q => q._id.toString() === answer.questionId);
-      
-      if (!question) {
-        return res.status(400).json({ message: 'Invalid question ID' });
-      }
-      
-      const isCorrect = answer.answer === question.correctAnswer;
-      if (isCorrect) {
-        score++;
-      }
-      
-      processedAnswers.push({
-        question: question.question,
-        userAnswer: answer.answer,
-        correctAnswer: question.correctAnswer,
-        isCorrect
-      });
-    }
-    
-    // Create result
+    const score = answers.filter(answer => answer.isCorrect).length;
+
     const result = new QuizResult({
       quiz: quizId,
-      user: req.user._id,
+      user: req.user.userId,
       score,
-      totalQuestions: quiz.questions.length,
+      totalQuestions: answers.length,
       timeTaken,
-      answers: processedAnswers
+      answers
     });
-    
+
     await result.save();
-    
-    // Populate quiz data for response
-    await result.populate('quiz');
-    
-    res.status(201).json(result);
+
+    const populatedResult = await result.populate('quiz');
+    res.status(201).json(populatedResult);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error submitting quiz result:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error submitting quiz result' });
   }
 });
 

@@ -39,16 +39,17 @@ const quizResultSchema = new mongoose.Schema({
     required: true
   },
   timeTaken: {
-    type: Number, // Time in seconds
+    type: Number,
     required: true
   },
-  answers: {
-    type: [answerSchema],
-    required: true
-  }
+  answers: [answerSchema]
 }, {
   timestamps: true
 });
+
+// Add indexes for better query performance
+quizResultSchema.index({ quiz: 1, user: 1 });
+quizResultSchema.index({ user: 1, createdAt: -1 });
 
 const QuizResult = mongoose.model('QuizResult', quizResultSchema);
 
